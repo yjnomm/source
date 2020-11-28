@@ -8,15 +8,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ppfe
-PKG_VERSION:=2017.09
+PKG_VERSION:=LSDK-20.04
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/qoriq-open-source/engine-pfe-bin.git
-PKG_SOURCE_VERSION:=97cd13d3070d7199e62881bc495b332194b67edd
-PKG_MIRROR_HASH:=1ef60cdac49dd57c76ec9ef01d00f6eeb025ba62f0d75f54adeeb3362f5edad2
-
-PKG_FLAGS:=nonshared
+PKG_SOURCE_URL:=https://github.com/NXP/qoriq-engine-pfe-bin.git
+PKG_SOURCE_VERSION:=d3a8ef0760c54ddc243039c86389497e37be90ab
+PKG_MIRROR_HASH:=64be93b8249d298e7b5fd0846787835f0659b6ab6c55b40b809366c79e272eb8
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -26,12 +24,12 @@ STRIP:=:
 define Package/layerscape-ppfe
   SECTION:=firmware
   CATEGORY:=Firmware
-  DEPENDS:=@TARGET_layerscape
   TITLE:=NXP Layerscape PPFE firmware
+  DEPENDS:=@TARGET_layerscape
   CONFIG_FW:=ls1012a/u-boot/pfe_fw_sbl.itb
   CONFIG_BIN1:=ls1012a/slow_path/ppfe_class_ls1012a.elf
   CONFIG_BIN2:=ls1012a/slow_path/ppfe_tmu_ls1012a.elf
-  CONFIG_LIC:=Freescale-Binary-EULA
+  CONFIG_LIC:=NXP-Binary-EULA.txt
 endef
 
 define Build/Compile

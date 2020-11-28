@@ -35,7 +35,8 @@
 #define SIO_LOCK_KEY		0xAA	/* Key to disable Super-I/O */
 
 #define SIO_NCT5104D_ID					0x1061	/* Chip ID */
-#define SIO_PCENGINES_APU_NCT5104D_ID	0xc452	/* Chip ID */
+#define SIO_PCENGINES_APU_NCT5104D_ID1	0xc452	/* Chip ID */
+#define SIO_PCENGINES_APU_NCT5104D_ID2	0xc453	/* Chip ID */
 
 enum chips { nct5104d };
 
@@ -275,11 +276,7 @@ static int nct5104d_gpio_probe(struct platform_device *pdev)
 	for (i = 0; i < data->nr_bank; i++) {
 		struct nct5104d_gpio_bank *bank = &data->bank[i];
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
-		bank->chip.dev = &pdev->dev;
-#else
 		bank->chip.parent = &pdev->dev;
-#endif
 		bank->data = data;
 
 		err = gpiochip_add(&bank->chip);
@@ -297,15 +294,7 @@ err_gpiochip:
 	for (i = i - 1; i >= 0; i--) {
 		struct nct5104d_gpio_bank *bank = &data->bank[i];
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,18,0)
-		int rm_err = gpiochip_remove(&bank->chip);
-		if (rm_err < 0)
-			dev_err(&pdev->dev,
-				"Failed to remove gpiochip %d: %d\n",
-				i, rm_err);
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(3,18,0) */
 		gpiochip_remove (&bank->chip);
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,18,0) */
 	}
 
 	return err;
@@ -319,17 +308,7 @@ static int nct5104d_gpio_remove(struct platform_device *pdev)
 	for (i = 0; i < data->nr_bank; i++) {
 		struct nct5104d_gpio_bank *bank = &data->bank[i];
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,18,0)
-		int err = gpiochip_remove(&bank->chip);
-		if (err) {
-			dev_err(&pdev->dev,
-				"Failed to remove GPIO gpiochip %d: %d\n",
-				i, err);
-			return err;
-		}
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(3,18,0) */
 		gpiochip_remove (&bank->chip);
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,18,0) */
 	}
 
 	return 0;
@@ -350,7 +329,8 @@ static int __init nct5104d_find(int addr, struct nct5104d_sio *sio)
 	devid = superio_inw(addr, SIO_CHIPID);
 	switch (devid) {
 	case SIO_NCT5104D_ID:
-	case SIO_PCENGINES_APU_NCT5104D_ID:
+	case SIO_PCENGINES_APU_NCT5104D_ID1:
+	case SIO_PCENGINES_APU_NCT5104D_ID2:
 		sio->type = nct5104d;
 		/* enable GPIO0 and GPIO1 */
 		superio_select(addr, SIO_LD_GPIO);
@@ -431,11 +411,6 @@ static int __init nct5104d_gpio_init(void)
 	struct nct5104d_sio sio;
 	const char *board_vendor = dmi_get_system_info(DMI_BOARD_VENDOR);
 	const char *board_name = dmi_get_system_info(DMI_BOARD_NAME);
-
- 	/* Make sure we only run on PC Engine APU boards */
-	if (!board_name || !board_vendor || strcasecmp(board_vendor, "PC Engines") || strncasecmp(board_name, "apu", 3)) {
-		return -ENODEV;
-	}
 
 	if (nct5104d_find(0x2e, &sio) &&
 	    nct5104d_find(0x4e, &sio))

@@ -13,11 +13,14 @@ get_status_led() {
 	fi;
 
 	# Now just pick any power LED
-	status_led_file=$(find /sys/class/leds/ -name "*:power:*" | head -n1)
+	status_led_file=$(find /sys/class/leds/ -name "*:power" | head -n1)
 	if [ -d "$status_led_file" ]; then
 		status_led=$(basename $status_led_file)
 		return
 	fi;
+
+	# And finally, let's also try the device-Tree aliases node
+	status_led="$(get_dt_led status)"
 }
 
 set_state() {

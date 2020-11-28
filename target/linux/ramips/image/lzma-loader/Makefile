@@ -13,9 +13,11 @@ LOADER		:= loader.bin
 LOADER_NAME	:= $(basename $(notdir $(LOADER)))
 LOADER_DATA 	:=
 TARGET_DIR	:=
+FLASH_START	:=
 FLASH_OFFS	:=
 FLASH_MAX	:=
 BOARD		:=
+PLATFORM	:=
 
 ifeq ($(TARGET_DIR),)
 TARGET_DIR	:= $(KDIR)
@@ -39,10 +41,11 @@ loader-compile: $(PKG_BUILD_DIR)/.prepared
 	$(MAKE) -C $(PKG_BUILD_DIR) CROSS_COMPILE="$(TARGET_CROSS)" \
 		LZMA_TEXT_START=$(LZMA_TEXT_START) \
 		LOADER_DATA=$(LOADER_DATA) \
+		FLASH_START=$(FLASH_START) \
 		FLASH_OFFS=$(FLASH_OFFS) \
 		FLASH_MAX=$(FLASH_MAX) \
 		BOARD="$(BOARD)" \
-		PLATFORM="ralink" \
+		PLATFORM="$(PLATFORM)" \
 		clean all
 
 loader.gz: $(PKG_BUILD_DIR)/loader.bin

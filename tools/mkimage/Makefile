@@ -7,14 +7,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=mkimage
-PKG_VERSION:=2014.10
+PKG_VERSION:=2020.04
 
 PKG_SOURCE:=u-boot-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_URL:=\
-	http://mirror2.openwrt.org/sources \
+PKG_SOURCE_URL:= \
+	https://mirror.cyberbits.eu/u-boot \
+	https://ftp.denx.de/pub/u-boot \
 	ftp://ftp.denx.de/pub/u-boot
-PKG_HASH:=d3b132a7a9b3f3182b7aad71c2dfbd4fc15bea83e12c76134eb3ffefc07d1c71
-PKG_CAT:=bzcat
+PKG_HASH:=fe732aaf037d9cc3c0909bad8362af366ae964bbdac6913a34081ff4ad565372
 
 HOST_BUILD_DIR:=$(BUILD_DIR_HOST)/u-boot-$(PKG_VERSION)
 
@@ -22,25 +22,30 @@ include $(INCLUDE_DIR)/host-build.mk
 
 define Host/Prepare
 	$(Host/Prepare/Default)
-	rm -f \
-		$(HOST_BUILD_DIR)/include/errno.h \
-		$(HOST_BUILD_DIR)/include/malloc.h \
-		$(HOST_BUILD_DIR)/tools/.depend
-	touch $(HOST_BUILD_DIR)/include/config.mk
-	touch $(HOST_BUILD_DIR)/include/config.h
+	mkdir -p $(HOST_BUILD_DIR)/include/config
+	touch $(HOST_BUILD_DIR)/include/config/auto.conf
 endef
 
 define Host/Compile
-	$(MAKE) -C $(HOST_BUILD_DIR) defconfig   HOSTCFLAGS="$(HOST_CPPFLAGS) $(HOST_CFLAGS)" HOSTLDFLAGS="$(HOST_LDFLAGS)" HOST_LOADLIBES="$$$$(pkg-config --static --libs libcrypto)"
-	$(MAKE) -C $(HOST_BUILD_DIR) tools-only  HOSTCFLAGS="$(HOST_CPPFLAGS) $(HOST_CFLAGS)" HOSTLDFLAGS="$(HOST_LDFLAGS)" HOST_LOADLIBES="$$$$(pkg-config --static --libs libcrypto)"
+	$(MAKE) -C $(HOST_BUILD_DIR) \
+		HOSTCFLAGS="$(HOST_CFLAGS)" \
+		HOSTLDFLAGS="$(HOST_LDFLAGS)" \
+		no-dot-config-targets=tools-only \
+		CONFIG_MKIMAGE_DTC_PATH=dtc \
+		CONFIG_FIT=y \
+		CONFIG_FIT_SIGNATURE=y \
+		CONFIG_FIT_SIGNATURE_MAX_SIZE=0x10000000 \
+		tools-only
 endef
 
 define Host/Install
 	$(CP) $(HOST_BUILD_DIR)/tools/mkimage $(STAGING_DIR_HOST)/bin/
+	$(CP) $(HOST_BUILD_DIR)/tools/mkenvimage $(STAGING_DIR_HOST)/bin/
 endef
 
 define Host/Clean
 	rm -f $(STAGING_DIR_HOST)/bin/mkimage
+	rm -f $(STAGING_DIR_HOST)/bin/mkenvimage
 endef
 
 $(eval $(call HostBuild))

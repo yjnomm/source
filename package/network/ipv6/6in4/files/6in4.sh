@@ -9,6 +9,20 @@
 	init_proto "$@"
 }
 
+# Function taken from 6to4 package (6to4.sh), flipped returns
+test_6in4_rfc1918()
+{
+	local oIFS="$IFS"; IFS="."; set -- $1; IFS="$oIFS"
+	[ $1 -eq  10 ] && return 1
+	[ $1 -eq 192 ] && [ $2 -eq 168 ] && return 1
+	[ $1 -eq 172 ] && [ $2 -ge  16 ] && [ $2 -le  31 ] && return 1
+
+	# RFC 6598
+	[ $1 -eq 100 ] && [ $2 -ge  64 ] && [ $2 -le 127 ] && return 1
+
+	return 0
+}
+
 proto_6in4_update() {
 	sh -c '
 		timeout=5
@@ -22,13 +36,18 @@ proto_6in4_update() {
 	' "$1" "$@"
 }
 
+proto_6in4_add_prefix() {
+	append "$3" "$1"
+}
+
 proto_6in4_setup() {
 	local cfg="$1"
 	local iface="$2"
 	local link="6in4-$cfg"
 
-	local mtu ttl tos ipaddr peeraddr ip6addr ip6prefix tunlink tunnelid username password updatekey
-	json_get_vars mtu ttl tos ipaddr peeraddr ip6addr ip6prefix tunlink tunnelid username password updatekey
+	local mtu ttl tos ipaddr peeraddr ip6addr ip6prefix ip6prefixes tunlink tunnelid username password updatekey
+	json_get_vars mtu ttl tos ipaddr peeraddr ip6addr tunlink tunnelid username password updatekey
+	json_for_each_item proto_6in4_add_prefix ip6prefix ip6prefixes
 
 	[ -z "$peeraddr" ] && {
 		proto_notify_error "$cfg" "MISSING_ADDRESS"
@@ -56,15 +75,15 @@ proto_6in4_setup() {
 	[ -n "$ip6addr" ] && {
 		local local6="${ip6addr%%/*}"
 		local mask6="${ip6addr##*/}"
-		[[ "$local6" = "$mask6" ]] && mask6=
+		[ "$local6" = "$mask6" ] && mask6=
 		proto_add_ipv6_address "$local6" "$mask6"
 		proto_add_ipv6_route "::" 0 "" "" "" "$local6/$mask6"
 	}
 
-	[ -n "$ip6prefix" ] && {
+	for ip6prefix in $ip6prefixes; do
 		proto_add_ipv6_prefix "$ip6prefix"
 		proto_add_ipv6_route "::" 0 "" "" "" "$ip6prefix"
-	}
+	done
 
 	proto_add_tunnel
 	json_add_string mode sit
@@ -92,6 +111,11 @@ proto_6in4_setup() {
 		}
 
 		local url="$http://ipv4.tunnelbroker.net/nic/update?hostname=$tunnelid"
+		
+		test_6in4_rfc1918 "$ipaddr" && {
+			local url="${url}&myip=${ipaddr}"
+		}
+
 		local try=0
 		local max=3
 
@@ -122,7 +146,7 @@ proto_6in4_init_config() {
 
 	proto_config_add_string "ipaddr"
 	proto_config_add_string "ip6addr"
-	proto_config_add_string "ip6prefix"
+	proto_config_add_array "ip6prefix"
 	proto_config_add_string "peeraddr"
 	proto_config_add_string "tunlink"
 	proto_config_add_string "tunnelid"

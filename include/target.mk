@@ -13,12 +13,48 @@ __target_inc=1
 DEVICE_TYPE?=router
 
 # Default packages - the really basic set
-DEFAULT_PACKAGES:=base-files libc libgcc busybox dropbear mtd uci opkg netifd fstools uclient-fetch logd
+DEFAULT_PACKAGES:=\
+	base-files \
+	ca-bundle \
+	dropbear \
+	fstools \
+	libc \
+	libgcc \
+	libustream-wolfssl \
+	logd \
+	mtd \
+	netifd \
+	opkg \
+	uci \
+	uclient-fetch \
+	urandom-seed \
+	urngd
+
+ifneq ($(CONFIG_SELINUX),)
+DEFAULT_PACKAGES+=busybox-selinux procd-selinux
+else
+DEFAULT_PACKAGES+=busybox procd
+endif
+
+# For the basic set
+DEFAULT_PACKAGES.basic:=
 # For nas targets
-DEFAULT_PACKAGES.nas:=block-mount fdisk lsblk mdadm
+DEFAULT_PACKAGES.nas:=\
+	block-mount \
+	fdisk \
+	lsblk \
+	mdadm
 # For router targets
-DEFAULT_PACKAGES.router:=dnsmasq iptables ip6tables ppp ppp-mod-pppoe firewall odhcpd odhcp6c
-DEFAULT_PACKAGES.bootloader:=
+DEFAULT_PACKAGES.router:=\
+	dnsmasq \
+	firewall \
+	ip6tables \
+	iptables \
+	kmod-ipt-offload \
+	odhcp6c \
+	odhcpd-ipv6only \
+	ppp \
+	ppp-mod-pppoe
 
 ifneq ($(DUMP),)
   all: dumpinfo
@@ -55,7 +91,7 @@ endif
 DEFAULT_PACKAGES += $(DEFAULT_PACKAGES.$(DEVICE_TYPE))
 
 filter_packages = $(filter-out -% $(patsubst -%,%,$(filter -%,$(1))),$(1))
-extra_packages = $(if $(filter wpad-mini wpad nas,$(1)),iwinfo)
+extra_packages = $(if $(filter wpad wpad-% nas,$(1)),iwinfo)
 
 define ProfileDefault
   NAME:=
@@ -68,6 +104,7 @@ define Profile
   $(eval $(call ProfileDefault))
   $(eval $(call Profile/$(1)))
   dumpinfo : $(call shexport,Profile/$(1)/Description)
+  PACKAGES := $(filter-out -%,$(PACKAGES))
   DUMPINFO += \
 	echo "Target-Profile: $(1)"; \
 	$(if $(PRIORITY), echo "Target-Profile-Priority: $(PRIORITY)"; ) \
@@ -148,11 +185,11 @@ ifeq ($(CONFIG_TARGET),env)
   LINUX_RECONFIG_TARGET = $(TOPDIR)/env/kernel-config
 endif
 
-__linux_confcmd = $(SCRIPT_DIR)/kconfig.pl $(2) $(patsubst %,+,$(wordlist 2,9999,$(1))) $(1)
+__linux_confcmd = $(2) $(patsubst %,+,$(wordlist 2,9999,$(1))) $(1)
 
-LINUX_CONF_CMD = $(call __linux_confcmd,$(LINUX_KCONFIG_LIST),)
-LINUX_RECONF_CMD = $(call __linux_confcmd,$(LINUX_RECONFIG_LIST),)
-LINUX_RECONF_DIFF = $(call __linux_confcmd,$(filter-out $(LINUX_RECONFIG_TARGET),$(LINUX_RECONFIG_LIST)),'>')
+LINUX_CONF_CMD = $(SCRIPT_DIR)/kconfig.pl $(call __linux_confcmd,$(LINUX_KCONFIG_LIST))
+LINUX_RECONF_CMD = $(SCRIPT_DIR)/kconfig.pl $(call __linux_confcmd,$(LINUX_RECONFIG_LIST))
+LINUX_RECONF_DIFF = $(SCRIPT_DIR)/kconfig.pl - '>' $(call __linux_confcmd,$(filter-out $(LINUX_RECONFIG_TARGET),$(LINUX_RECONFIG_LIST))) $(1) $(GENERIC_PLATFORM_DIR)/config-filter
 
 ifeq ($(DUMP),1)
   BuildTarget=$(BuildTargets/DumpCurrent)
@@ -167,36 +204,19 @@ ifeq ($(DUMP),1)
     CPU_CFLAGS += -mno-branch-likely
     CPU_CFLAGS_mips32 = -mips32 -mtune=mips32
     CPU_CFLAGS_mips64 = -mips64 -mtune=mips64 -mabi=64
+    CPU_CFLAGS_mips64r2 = -mips64r2 -mtune=mips64r2 -mabi=64
+    CPU_CFLAGS_4kec = -mips32r2 -mtune=4kec
     CPU_CFLAGS_24kc = -mips32r2 -mtune=24kc
     CPU_CFLAGS_74kc = -mips32r2 -mtune=74kc
-    CPU_CFLAGS_octeon = -march=octeon -mabi=64
+    CPU_CFLAGS_octeonplus = -march=octeon+ -mabi=64
   endif
   ifeq ($(ARCH),i386)
-    CPU_TYPE ?= pentium
-    CPU_CFLAGS_pentium = -march=pentium-mmx
+    CPU_TYPE ?= pentium-mmx
+    CPU_CFLAGS_pentium-mmx = -march=pentium-mmx
     CPU_CFLAGS_pentium4 = -march=pentium4
   endif
   ifneq ($(findstring arm,$(ARCH)),)
     CPU_TYPE ?= xscale
-    CPU_CFLAGS_arm920t = -mcpu=arm920t
-    CPU_CFLAGS_arm926ej-s = -mcpu=arm926ej-s
-    CPU_CFLAGS_arm1136j-s = -mcpu=arm1136j-s
-    CPU_CFLAGS_arm1176jzf-s = -mcpu=arm1176jzf-s
-    CPU_CFLAGS_cortex-a5 = -mcpu=cortex-a5
-    CPU_CFLAGS_cortex-a7 = -mcpu=cortex-a7
-    CPU_CFLAGS_cortex-a8 = -mcpu=cortex-a8
-    CPU_CFLAGS_cortex-a9 = -mcpu=cortex-a9
-    CPU_CFLAGS_cortex-a15 = -mcpu=cortex-a15
-    CPU_CFLAGS_cortex-a53 = -mcpu=cortex-a53
-    CPU_CFLAGS_fa526 = -mcpu=fa526
-    CPU_CFLAGS_mpcore = -mcpu=mpcore
-    CPU_CFLAGS_xscale = -mcpu=xscale
-    ifeq ($(CONFIG_SOFT_FLOAT),)
-      CPU_CFLAGS_neon = -mfpu=neon
-      CPU_CFLAGS_vfp = -mfpu=vfp
-      CPU_CFLAGS_vfpv3 = -mfpu=vfpv3-d16
-      CPU_CFLAGS_neon-vfpv4 = -mfpu=neon-vfpv4
-    endif
   endif
   ifeq ($(ARCH),powerpc)
     CPU_CFLAGS_603e:=-mcpu=603e
@@ -239,6 +259,11 @@ ifeq ($(DUMP),1)
     .SILENT: $(TMP_CONFIG)
     .PRECIOUS: $(TMP_CONFIG)
 
+    ifdef KERNEL_TESTING_PATCHVER
+      ifneq ($(KERNEL_TESTING_PATCHVER),$(KERNEL_PATCHVER))
+        FEATURES += testing-kernel
+      endif
+    endif
     ifneq ($(CONFIG_OF),)
       FEATURES += dt
     endif
@@ -269,9 +294,7 @@ ifeq ($(DUMP),1)
       FEATURES += virtio
     endif
     ifneq ($(CONFIG_CPU_MIPS32_R2),)
-      ifneq ($(CPU_SUBTYPE),nomips16)
-        FEATURES += mips16
-      endif
+      FEATURES += mips16
     endif
     FEATURES += $(foreach v,6 7,$(if $(CONFIG_CPU_V$(v)),arm_v$(v)))
 
@@ -299,6 +322,7 @@ define BuildTargets/DumpCurrent
 	 echo 'Target-Optimization: $(if $(CFLAGS),$(CFLAGS),$(DEFAULT_CFLAGS))'; \
 	 echo 'CPU-Type: $(CPU_TYPE)$(if $(CPU_SUBTYPE),+$(CPU_SUBTYPE))'; \
 	 echo 'Linux-Version: $(LINUX_VERSION)'; \
+	$(if $(LINUX_TESTING_VERSION),echo 'Linux-Testing-Version: $(LINUX_TESTING_VERSION)';) \
 	 echo 'Linux-Release: $(LINUX_RELEASE)'; \
 	 echo 'Linux-Kernel-Arch: $(LINUX_KARCH)'; \
 	$(if $(SUBTARGET),,$(if $(DEFAULT_SUBTARGET), echo 'Default-Subtarget: $(DEFAULT_SUBTARGET)'; )) \

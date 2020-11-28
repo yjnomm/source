@@ -21,14 +21,12 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 #include "config.h"
 #include "cache.h"
 #include "printf.h"
 #include "LzmaDecode.h"
-
-#define AR71XX_FLASH_START	0x1f000000
-#define AR71XX_FLASH_END	0x1fe00000
 
 #define KSEG0			0x80000000
 #define KSEG1			0xa0000000
@@ -73,9 +71,10 @@ static unsigned long lzma_outsize;
 static unsigned long kernel_la;
 
 #ifdef CONFIG_KERNEL_CMDLINE
-#define kernel_argc	1
+#define kernel_argc	2
 static const char kernel_cmdline[] = CONFIG_KERNEL_CMDLINE;
 static const char *kernel_argv[] = {
+	NULL,
 	kernel_cmdline,
 	NULL,
 };
@@ -176,7 +175,7 @@ static void lzma_init_data(void)
 	unsigned long kernel_ofs;
 	unsigned long kernel_size;
 
-	flash_base = (unsigned char *) KSEG1ADDR(AR71XX_FLASH_START);
+	flash_base = (unsigned char *) KSEG1ADDR(CONFIG_FLASH_START);
 
 	printf("Looking for OpenWrt image... ");
 

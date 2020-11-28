@@ -21,6 +21,7 @@ DUMP:=1
 endif
 
 export TMP_DIR:=$(TOPDIR)/tmp
+export TMPDIR:=$(TMP_DIR)
 
 qstrip=$(strip $(subst ",,$(1)))
 #"))
@@ -69,6 +70,7 @@ TARGET_SUFFIX=$(call qstrip,$(CONFIG_TARGET_SUFFIX))
 BUILD_SUFFIX:=$(call qstrip,$(CONFIG_BUILD_SUFFIX))
 SUBDIR:=$(patsubst $(TOPDIR)/%,%,${CURDIR})
 BUILD_SUBDIR:=$(patsubst $(TOPDIR)/%,%,${CURDIR})
+NPROC:=$(shell sysctl -n hw.ncpu 2>/dev/null || nproc)
 export SHELL:=/usr/bin/env bash
 
 IS_PACKAGE_BUILD := $(if $(filter package/%,$(BUILD_SUBDIR)),1)
@@ -138,11 +140,16 @@ else
   TOOLCHAIN_DIR_NAME:=toolchain-$(GNU_TARGET_NAME)
 endif
 
-ifeq ($(or $(CONFIG_EXTERNAL_TOOLCHAIN),$(CONFIG_GCC_VERSION_4_8),$(CONFIG_TARGET_uml)),)
-  iremap = -iremap$(1):$(2)
+ifeq ($(or $(CONFIG_EXTERNAL_TOOLCHAIN),$(CONFIG_TARGET_uml)),)
+  ifeq ($(CONFIG_GCC_USE_IREMAP),y)
+    iremap = -iremap$(1):$(2)
+  else
+    iremap = -f$(if $(CONFIG_REPRODUCIBLE_DEBUG_INFO),file,macro)-prefix-map=$(1)=$(2)
+  endif
 endif
 
 PACKAGE_DIR:=$(BIN_DIR)/packages
+PACKAGE_DIR_ALL:=$(TOPDIR)/staging_dir/packages/$(BOARD)
 BUILD_DIR:=$(BUILD_DIR_BASE)/$(TARGET_DIR_NAME)
 STAGING_DIR:=$(TOPDIR)/staging_dir/$(TARGET_DIR_NAME)
 BUILD_DIR_TOOLCHAIN:=$(BUILD_DIR_BASE)/$(TOOLCHAIN_DIR_NAME)
@@ -153,7 +160,7 @@ TARGET_ROOTFS_DIR?=$(if $(call qstrip,$(CONFIG_TARGET_ROOTFS_DIR)),$(call qstrip
 TARGET_DIR:=$(TARGET_ROOTFS_DIR)/root-$(BOARD)
 STAGING_DIR_ROOT:=$(STAGING_DIR)/root-$(BOARD)
 STAGING_DIR_IMAGE:=$(STAGING_DIR)/image
-BUILD_LOG_DIR:=$(TOPDIR)/logs
+BUILD_LOG_DIR:=$(if $(call qstrip,$(CONFIG_BUILD_LOG_DIR)),$(call qstrip,$(CONFIG_BUILD_LOG_DIR)),$(TOPDIR)/logs)
 PKG_INFO_DIR := $(STAGING_DIR)/pkginfo
 
 BUILD_DIR_HOST:=$(if $(IS_PACKAGE_BUILD),$(BUILD_DIR_BASE)/hostpkg,$(BUILD_DIR_BASE)/host)
@@ -167,8 +174,6 @@ TARGET_CFLAGS:=$(TARGET_OPTIMIZATION)$(if $(CONFIG_DEBUG), -g3) $(call qstrip,$(
 TARGET_CXXFLAGS = $(TARGET_CFLAGS)
 TARGET_ASFLAGS_DEFAULT = $(TARGET_CFLAGS)
 TARGET_ASFLAGS = $(TARGET_ASFLAGS_DEFAULT)
-TARGET_CPPFLAGS:=-I$(STAGING_DIR)/usr/include -I$(STAGING_DIR)/include
-TARGET_LDFLAGS:=-L$(STAGING_DIR)/usr/lib -L$(STAGING_DIR)/lib
 ifneq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
 LIBGCC_S_PATH=$(realpath $(wildcard $(call qstrip,$(CONFIG_LIBGCC_ROOT_DIR))/$(call qstrip,$(CONFIG_LIBGCC_FILE_SPEC))))
 LIBGCC_S=$(if $(LIBGCC_S_PATH),-L$(dir $(LIBGCC_S_PATH)) -lgcc_s)
@@ -177,8 +182,6 @@ else
 LIBGCC_A=$(lastword $(wildcard $(TOOLCHAIN_DIR)/lib/gcc/*/*/libgcc.a))
 LIBGCC_S=$(if $(wildcard $(TOOLCHAIN_DIR)/lib/libgcc_s.so),-L$(TOOLCHAIN_DIR)/lib -lgcc_s,$(LIBGCC_A))
 endif
-LIBRPC=-lrpc
-LIBRPC_DEPENDS=+librpc
 
 ifeq ($(CONFIG_ARCH_64BIT),y)
   LIB_SUFFIX:=64
@@ -243,9 +246,9 @@ export PKG_CONFIG
 
 HOSTCC:=gcc
 HOSTCXX:=g++
-HOST_CPPFLAGS:=-I$(STAGING_DIR_HOST)/include -I$(STAGING_DIR_HOST)/usr/include $(if $(IS_PACKAGE_BUILD),-I$(STAGING_DIR_HOSTPKG)/include -I$(STAGING_DIR)/host/include)
+HOST_CPPFLAGS:=-I$(STAGING_DIR_HOST)/include $(if $(IS_PACKAGE_BUILD),-I$(STAGING_DIR_HOSTPKG)/include -I$(STAGING_DIR)/host/include)
 HOST_CFLAGS:=-O2 $(HOST_CPPFLAGS)
-HOST_LDFLAGS:=-L$(STAGING_DIR_HOST)/lib -L$(STAGING_DIR_HOST)/usr/lib $(if $(IS_PACKAGE_BUILD),-L$(STAGING_DIR_HOSTPKG)/lib -L$(STAGING_DIR)/host/lib)
+HOST_LDFLAGS:=-L$(STAGING_DIR_HOST)/lib $(if $(IS_PACKAGE_BUILD),-L$(STAGING_DIR_HOSTPKG)/lib -L$(STAGING_DIR)/host/lib)
 
 ifeq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
   TARGET_AR:=$(TARGET_CROSS)gcc-ar
@@ -259,10 +262,13 @@ endif
 
 BUILD_KEY=$(TOPDIR)/key-build
 
+FAKEROOT:=$(STAGING_DIR_HOST)/bin/fakeroot
+
 TARGET_CC:=$(TARGET_CROSS)gcc
 TARGET_CXX:=$(TARGET_CROSS)g++
 KPATCH:=$(SCRIPT_DIR)/patch-kernel.sh
 SED:=$(STAGING_DIR_HOST)/bin/sed -i -e
+ESED:=$(STAGING_DIR_HOST)/bin/sed -E -i -e
 CP:=cp -fpR
 LN:=ln -sf
 XARGS:=xargs -r
@@ -274,6 +280,7 @@ PATCH:=patch
 PYTHON:=python
 
 INSTALL_BIN:=install -m0755
+INSTALL_SUID:=install -m4755
 INSTALL_DIR:=install -d -m0755
 INSTALL_DATA:=install -m0644
 INSTALL_CONF:=install -m0600
@@ -291,6 +298,9 @@ ifneq ($(CONFIG_CCACHE),)
   TARGET_CXX:= ccache_cxx
   HOSTCC:= ccache $(HOSTCC)
   HOSTCXX:= ccache $(HOSTCXX)
+  export CCACHE_BASEDIR:=$(TOPDIR)
+  export CCACHE_DIR:=$(if $(call qstrip,$(CONFIG_CCACHE_DIR)),$(call qstrip,$(CONFIG_CCACHE_DIR)),$(TOPDIR)/.ccache)
+  export CCACHE_COMPILERCHECK:=%compiler% -dumpmachine; %compiler% -dumpversion
 endif
 
 TARGET_CONFIGURE_OPTS = \
@@ -316,7 +326,7 @@ else
     STRIP:=$(TARGET_CROSS)strip $(call qstrip,$(CONFIG_STRIP_ARGS))
   else
     ifneq ($(CONFIG_USE_SSTRIP),)
-      STRIP:=$(STAGING_DIR_HOST)/bin/sstrip
+      STRIP:=$(STAGING_DIR_HOST)/bin/sstrip $(call qstrip,$(CONFIG_SSTRIP_ARGS))
     endif
   endif
   RSTRIP= \
@@ -354,10 +364,6 @@ define shexport
 export $(call shvar,$(1))=$$(call $(1))
 endef
 
-define include_mk
-$(eval -include $(if $(DUMP),,$(STAGING_DIR)/mk/$(strip $(1))))
-endef
-
 # Execute commands under flock
 # $(1) => The shell expression.
 # $(2) => The lock name. If not given, the global lock will be used.
@@ -392,8 +398,9 @@ endef
 
 # Calculate sha256sum of any plain file within a given directory
 # $(1) => Input directory
+# $(2) => If set, recurse into subdirectories
 define sha256sums
-	(cd $(1); find . -maxdepth 1 -type f -not -name 'sha256sums' -printf "%P\n" | sort | \
+	(cd $(1); find . $(if $(2),,-maxdepth 1) -type f -not -name 'sha256sums' -printf "%P\n" | sort | \
 		xargs -r $(STAGING_DIR_HOST)/bin/mkhash -n sha256 | sed -ne 's!^\(.*\) \(.*\)$$!\1 *\2!p' > sha256sums)
 endef
 

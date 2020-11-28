@@ -8,19 +8,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=rpcd
-PKG_RELEASE:=1
+PKG_RELEASE:=3
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL=$(LEDE_GIT)/project/rpcd.git
-PKG_SOURCE_DATE:=2017-11-12
-PKG_SOURCE_VERSION:=a0231be8fbc61bb97e725eb206fc9b1ce9f69c05
+PKG_SOURCE_URL=$(PROJECT_GIT)/project/rpcd.git
+PKG_SOURCE_DATE:=2020-09-18
+PKG_SOURCE_VERSION:=3fea6559817a22de1b8375b9b1f3d818e6534591
 PKG_MAINTAINER:=Jo-Philipp Wich <jo@mein.io>
-PKG_MIRROR_HASH:=5f66a6ad2eced71cccd43fc011077806e3bbc6dadd0403175947a02c25fe6344
+PKG_MIRROR_HASH:=d9284a23017c4393f210afb5bdc7f6d9e0b3ef46cc6e2cc2b2bcaa0199c942af
 
 PKG_LICENSE:=ISC
 PKG_LICENSE_FILES:=
 
 PKG_BUILD_PARALLEL:=1
+PKG_ASLR_PIE_REGULAR:=1
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -39,7 +40,7 @@ endef
 
 define Package/rpcd
   $(Package/rpcd/default)
-  DEPENDS+= +libuci +libblobmsg-json
+  DEPENDS+= +libuci +libblobmsg-json +libjson-c
 endef
 
 define Package/rpcd/description
@@ -62,6 +63,8 @@ define Package/rpcd/install
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/unauthenticated.json $(1)/usr/share/rpcd/acl.d/unauthenticated.json
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/rpcd.config $(1)/etc/config/rpcd
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_BIN) ./files/50-migrate-rpcd-ubus-sock.sh $(1)/etc/uci-defaults
 endef
 
 

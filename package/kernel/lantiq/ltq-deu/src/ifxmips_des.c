@@ -682,25 +682,14 @@ struct crypto_alg ifxdeu_cbc_des3_ede_alg = {
         }
 };
 
-/*! \fn int __init ifxdeu_init_des (void)
+/*! \fn int ifxdeu_init_des (void)
  *  \ingroup IFX_DES_FUNCTIONS
  *  \brief initialize des driver      
 */                                 
-int __init ifxdeu_init_des (void)
+int ifxdeu_init_des (void)
 {
     int ret = -ENOSYS;
 
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))
-     if (!disable_multiblock) {
-                ifxdeu_des_alg.cra_u.cipher.cia_max_nbytes = DES_BLOCK_SIZE;    //(size_t)-1;
-                ifxdeu_des_alg.cra_u.cipher.cia_req_align = 16;
-                ifxdeu_des_alg.cra_u.cipher.cia_ecb = ifx_deu_des_ecb;
-                ifxdeu_des_alg.cra_u.cipher.cia_cbc = ifx_deu_des_cbc;
-                ifxdeu_des_alg.cra_u.cipher.cia_cfb = ifx_deu_des_cfb;
-                ifxdeu_des_alg.cra_u.cipher.cia_ofb = ifx_deu_des_ofb;
-        }
-#endif
 
         ret = crypto_register_alg(&ifxdeu_des_alg);
         if (ret < 0)
@@ -761,11 +750,11 @@ cbc_des3_ede_err:
 
 }
 
-/*! \fn void __exit ifxdeu_fini_des (void)
+/*! \fn void ifxdeu_fini_des (void)
  *  \ingroup IFX_DES_FUNCTIONS
  *  \brief unregister des driver    
 */                                 
-void __exit ifxdeu_fini_des (void)
+void ifxdeu_fini_des (void)
 {
         crypto_unregister_alg (&ifxdeu_des_alg);
         crypto_unregister_alg (&ifxdeu_ecb_des_alg);

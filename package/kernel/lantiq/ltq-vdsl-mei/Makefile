@@ -9,7 +9,7 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=ltq-vdsl-vr9-mei
 PKG_VERSION:=1.5.17.6
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 PKG_BASE_NAME:=drv_mei_cpe
 PKG_SOURCE:=$(PKG_BASE_NAME)-$(PKG_VERSION).tar.gz
@@ -19,10 +19,8 @@ PKG_HASH:=94f6904364348b7f74087e721968abc28b2564fb9bd8899aa930d36490387662
 PKG_FIXUP:=autoreconf
 PKG_FLAGS:=nonshared
 PKG_MAINTAINER:=John Crispin <john@phrozen.org>
-PKG_USE_MIPS16:=0
 PKG_LICENSE:=GPL-2.0 BSD-2-Clause
 PKG_LICENSE_FILES:=LICENSE
-
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -40,7 +38,7 @@ define KernelPackage/ltq-vdsl-vr9-mei/description
 endef
 
 
-define Package/ltq-vdsl-mei_test
+define Package/ltq-vdsl-mei-test
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Lantiq mei driver test tool
@@ -48,7 +46,7 @@ define Package/ltq-vdsl-mei_test
   DEPENDS:=@TARGET_lantiq_xrx200
 endef
 
-define Package/ltq-vdsl-mei_test/description
+define Package/ltq-vdsl-mei-test/description
 	Userland tool to directly control the mei driver, this is only needed
 	for test and development purposes.
 endef
@@ -65,7 +63,7 @@ CONFIGURE_ARGS += \
 	--enable-error_print \
 	--enable-ifxos-include="-I$(STAGING_DIR)/usr/include/ifxos/" \
 	--enable-ifxos-library="-L$(STAGING_DIR)/usr/lib" \
-	--enable-add_drv_cflags="-DMEI_DRV_ATM_PTM_INTERFACE_ENABLE=1 -fno-pic -mlong-calls -O2 -g0" \
+	--enable-add_drv_cflags="-DMEI_DRV_ATM_PTM_INTERFACE_ENABLE=1" \
 	--enable-linux-26 \
 	--enable-kernelbuild="$(LINUX_DIR)" \
 	--enable-drv_test_appl=yes \
@@ -82,9 +80,9 @@ endef
 
 $(eval $(call KernelPackage,ltq-vdsl-vr9-mei))
 
-define Package/ltq-vdsl-mei_test/install
+define Package/ltq-vdsl-mei-test/install
 	$(INSTALL_DIR) $(1)/bin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/mei_cpe_drv_test $(1)/bin
 endef
 
-$(eval $(call BuildPackage,ltq-vdsl-mei_test))
+$(eval $(call BuildPackage,ltq-vdsl-mei-test))

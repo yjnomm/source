@@ -14,10 +14,11 @@ export TOPDIR LC_ALL LANG TZ
 
 empty:=
 space:= $(empty) $(empty)
-$(if $(findstring $(space),$(TOPDIR)),$(error ERROR: The path to the LEDE directory must not include any spaces))
+$(if $(findstring $(space),$(TOPDIR)),$(error ERROR: The path to the OpenWrt directory must not include any spaces))
 
 world:
 
+DISTRO_PKG_CONFIG:=$(shell which -a pkg-config | grep -E '\/usr' | head -n 1)
 export PATH:=$(TOPDIR)/staging_dir/host/bin:$(PATH)
 
 ifneq ($(OPENWRT_BUILD),1)
@@ -27,6 +28,8 @@ ifneq ($(OPENWRT_BUILD),1)
   export OPENWRT_BUILD
   GREP_OPTIONS=
   export GREP_OPTIONS
+  CDPATH=
+  export CDPATH
   include $(TOPDIR)/include/debug.mk
   include $(TOPDIR)/include/depends.mk
   include $(TOPDIR)/include/toplevel.mk
@@ -57,6 +60,12 @@ clean: FORCE
 dirclean: clean
 	rm -rf $(STAGING_DIR_HOST) $(STAGING_DIR_HOSTPKG) $(TOOLCHAIN_DIR) $(BUILD_DIR_BASE)/host $(BUILD_DIR_BASE)/hostpkg $(BUILD_DIR_TOOLCHAIN)
 	rm -rf $(TMP_DIR)
+	$(MAKE) -C $(TOPDIR)/scripts/config clean
+
+cacheclean:
+ifneq ($(CONFIG_CCACHE),)
+	rm -rf $(if $(call qstrip,$(CONFIG_CCACHE_DIR)),$(call qstrip,$(CONFIG_CCACHE_DIR)),$(TOPDIR)/.ccache)
+endif
 
 ifndef DUMP_TARGET_DB
 $(BUILD_DIR)/.prepared: Makefile
@@ -84,19 +93,40 @@ prereq: $(target/stamp-prereq) tmp/.prereq_packages
 		exit 1; \
 	fi
 
+$(BIN_DIR)/profiles.json: FORCE
+	$(if $(CONFIG_JSON_OVERVIEW_IMAGE_INFO), \
+		WORK_DIR=$(BUILD_DIR)/json_info_files \
+			$(SCRIPT_DIR)/json_overview_image_info.py $@ \
+	)
+
+json_overview_image_info: $(BIN_DIR)/profiles.json
+
 checksum: FORCE
-	$(call sha256sums,$(BIN_DIR))
+	$(call sha256sums,$(BIN_DIR),$(CONFIG_BUILDBOT))
+
+buildversion: FORCE
+	$(SCRIPT_DIR)/getver.sh > $(BIN_DIR)/version.buildinfo
+
+feedsversion: FORCE
+	$(SCRIPT_DIR)/feeds list -fs > $(BIN_DIR)/feeds.buildinfo
 
 diffconfig: FORCE
 	mkdir -p $(BIN_DIR)
-	$(SCRIPT_DIR)/diffconfig.sh > $(BIN_DIR)/config.seed
+	$(SCRIPT_DIR)/diffconfig.sh > $(BIN_DIR)/config.buildinfo
+
+buildinfo: FORCE
+	$(_SINGLE)$(SUBMAKE) -r diffconfig buildversion feedsversion
 
 prepare: .config $(tools/stamp-compile) $(toolchain/stamp-compile)
-	$(_SINGLE)$(SUBMAKE) -r diffconfig
+	$(_SINGLE)$(SUBMAKE) -r buildinfo
 
 world: prepare $(target/stamp-compile) $(package/stamp-compile) $(package/stamp-install) $(target/stamp-install) FORCE
 	$(_SINGLE)$(SUBMAKE) -r package/index
+	$(_SINGLE)$(SUBMAKE) -r json_overview_image_info
 	$(_SINGLE)$(SUBMAKE) -r checksum
+ifneq ($(CONFIG_CCACHE),)
+	$(STAGING_DIR_HOST)/bin/ccache -s
+endif
 
 .PHONY: clean dirclean prereq prepare world package/symlinks package/symlinks-install package/symlinks-clean
 

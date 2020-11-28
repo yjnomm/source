@@ -11,10 +11,10 @@ PKG_NAME:=arm-trusted-firmware-sunxi
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL=https://github.com/apritzel/arm-trusted-firmware
-PKG_SOURCE_DATE:=2016-07-12
-PKG_SOURCE_VERSION:=87e8aedd80e6448a55b2328768d956fcb5f5d410
-PKG_MIRROR_HASH:=4e71a7d4bc0613533854c646b0fa574b18503c0ab28621aac67c70b9827562d8
+PKG_SOURCE_URL=https://github.com/ARM-software/arm-trusted-firmware
+PKG_SOURCE_DATE:=2018-10-02
+PKG_SOURCE_VERSION:=dbc8d9496ead9ecdd7c2a276b542a4fbbbf64027
+PKG_MIRROR_HASH:=c81521a27b86f606e927b4e346286540b862828c8d49292eae1f5c6adfc24001
 
 PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=license.md
@@ -37,13 +37,12 @@ MAKE_VARS = \
 	CROSS_COMPILE="$(TARGET_CROSS)"
 
 MAKE_FLAGS += \
-	PLAT=sun50iw1p1 \
-	DEBUG=1 \
+	PLAT=sun50i_a64 \
 	bl31
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(STAGING_DIR_IMAGE)
-	$(CP) $(PKG_BUILD_DIR)/build/sun50iw1p1/debug/bl31.bin $(STAGING_DIR_IMAGE)/bl31.bin
+	$(CP) $(PKG_BUILD_DIR)/build/sun50i_a64/release/bl31.bin $(STAGING_DIR_IMAGE)/bl31.bin
 endef
 
 define Package/arm-trusted-firmware-sunxi/install

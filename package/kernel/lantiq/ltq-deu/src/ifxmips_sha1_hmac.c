@@ -334,7 +334,7 @@ static struct shash_alg ifxdeu_sha1_hmac_alg = {
                 .cra_driver_name=       "ifxdeu-sha1_hmac",
                 .cra_priority   =       400,
 		.cra_ctxsize    =	sizeof(struct sha1_hmac_ctx),
-                .cra_flags      =       CRYPTO_ALG_TYPE_DIGEST,
+                .cra_flags      =       CRYPTO_ALG_TYPE_HASH,
                 .cra_blocksize  =       SHA1_HMAC_BLOCK_SIZE,
                 .cra_module     =       THIS_MODULE,
         }
@@ -342,11 +342,11 @@ static struct shash_alg ifxdeu_sha1_hmac_alg = {
 };
 
 
-/*! \fn int __init ifxdeu_init_sha1_hmac (void)
+/*! \fn int ifxdeu_init_sha1_hmac (void)
  *  \ingroup IFX_SHA1_HMAC_FUNCTIONS
  *  \brief initialize sha1 hmac driver    
 */                                 
-int __init ifxdeu_init_sha1_hmac (void)
+int ifxdeu_init_sha1_hmac (void)
 {
     int ret = -ENOSYS;
 
@@ -365,11 +365,11 @@ sha1_err:
     return ret;
 }
 
-/*! \fn void __exit ifxdeu_fini_sha1_hmac (void)
+/*! \fn void ifxdeu_fini_sha1_hmac (void)
  *  \ingroup IFX_SHA1_HMAC_FUNCTIONS
  *  \brief unregister sha1 hmac driver    
 */                                 
-void __exit ifxdeu_fini_sha1_hmac (void)
+void ifxdeu_fini_sha1_hmac (void)
 {
 
     crypto_unregister_shash(&ifxdeu_sha1_hmac_alg);

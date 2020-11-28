@@ -5,116 +5,193 @@
 # See /LICENSE for more information.
 #
 
-NAND_BLOCKSIZE := 2048-128k
-
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/image.mk
 
 KERNEL_LOADADDR:=0x8000
-TARGET_DEVICES = linksys-audi linksys-viper dockstar goflexnet goflexhome iconnect pogo_e02 ib62x0 nsa310b nsa325 on100
 
-UBI_OPTS := -m 2048 -p 128KiB -s 512
-UBIFS_OPTS := -m 2048 -e 126KiB -c 4096
+define Device/dsa-migration
+  DEVICE_COMPAT_VERSION := 1.1
+  DEVICE_COMPAT_MESSAGE := Config cannot be migrated from swconfig to DSA
+endef
 
 define Device/Default
   PROFILES := Default
+  DEVICE_DTS = kirkwood-$(lastword $(subst _, ,$(1)))
   KERNEL_DEPENDS = $$(wildcard $(DTS_DIR)/$$(DEVICE_DTS).dts)
   KERNEL := kernel-bin | append-dtb | uImage none
   KERNEL_NAME := zImage
   KERNEL_SUFFIX  := -uImage
-  KERNEL_INSTALL := 1
+  KERNEL_IN_UBI := 1
 
   PAGESIZE := 2048
   SUBPAGESIZE := 512
   BLOCKSIZE := 128k
-  IMAGES := sysupgrade.tar
-  IMAGE/sysupgrade.tar := sysupgrade-tar
-endef
-
-define Device/dockstar
-  DEVICE_DTS := kirkwood-dockstar
-  FILESYSTEMS := squashfs
-  DEVICE_TITLE := Seagate FreeAgent Dockstar
-  IMAGES += factory.bin
+  IMAGES := sysupgrade.bin factory.bin
+  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
   IMAGE/factory.bin := append-ubi
-  KERNEL_IN_UBI := 1
+  SUPPORTED_DEVICES = $(subst _,$(comma),$(1))
 endef
 
-define Device/goflexnet
-$(Device/dockstar)
-  DEVICE_TITLE := Seagate GoFlexNet
-  DEVICE_DTS := kirkwood-goflexnet
+define Device/checkpoint_l-50
+  DEVICE_VENDOR := Check Point
+  DEVICE_MODEL := L-50
+  DEVICE_PACKAGES := kmod-ath9k kmod-gpio-button-hotplug kmod-mvsdio \
+	kmod-rtc-s35390a kmod-usb-ledtrig-usbport wpad-basic-wolfssl
+  IMAGES := sysupgrade.bin
 endef
+TARGET_DEVICES += checkpoint_l-50
 
-define Device/goflexhome
-$(Device/dockstar)
-  DEVICE_TITLE := Seagate GoFlexHome
-  DEVICE_DTS := kirkwood-goflexhome
-endef
-
-define Device/linksys-audi
-  DEVICE_TITLE := Linksys EA3500 (Audi)
-  DEVICE_PACKAGES := kmod-mwl8k swconfig wpad-mini
-  DEVICE_DTS := kirkwood-linksys-audi
-  KERNEL_SIZE := 2624k
-  FILESYSTEMS := squashfs
-  IMAGES += factory.bin
-  UBINIZE_OPTS := -E 5
-  IMAGE/factory.bin := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi
-endef
-
-define Device/linksys-viper
-  DEVICE_TITLE := Linksys E4200v2 / EA4500 (Viper)
-  DEVICE_PACKAGES := kmod-mwl8k swconfig wpad-mini
-  DEVICE_DTS := kirkwood-linksys-viper
-  KERNEL_SIZE := 2688k
-  FILESYSTEMS := squashfs
-  IMAGES += factory.bin
-  UBINIZE_OPTS := -E 5
-  IMAGE/factory.bin := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi
-endef
-
-define Device/iconnect
-$(Device/dockstar)
-  DEVICE_TITLE := Iomega Iconnect
-  DEVICE_DTS := kirkwood-iconnect
-endef
-
-define Device/nsa310b
-$(Device/dockstar)
-  DEVICE_TITLE := ZyXEL NSA310b
-  DEVICE_DTS := kirkwood-nsa310b
-  DEVICE_PACKAGES := kmod-r8169 kmod-gpio-button-hotplug kmod-hwmon-lm85
-endef
-
-define Device/nsa325
-$(Device/dockstar)
-  DEVICE_TITLE := ZyXEL NSA325 (v1 and v2)
-  DEVICE_DTS := kirkwood-nsa325
-  DEVICE_PACKAGES := kmod-gpio-button-hotplug kmod-rtc-pcf8563 kmod-usb3
-endef
-
-define Device/on100
-  DEVICE_TITLE := Cisco Systems ON100
-  DEVICE_DTS := kirkwood-on100
-#  DEVICE_PACKAGES := kmod-mvsdio kmod-usb-storage kmod-i2c-core kmod-i2c-mv64xxx kmod-ata-core kmod-btmrvl kmod-btmrvl-sdio kmod-libertas kmod-libertas-sdio
-  DEVICE_PACKAGES := kmod-i2c-mv64xxx
+define Device/cisco_on100
+  DEVICE_VENDOR := Cisco Systems
+  DEVICE_MODEL := ON100
   KERNEL_SIZE := 5376k
-  IMAGES += factory.bin
-  IMAGE/factory.bin := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi
+  KERNEL_IN_UBI :=
   UBINIZE_OPTS := -E 5
+  IMAGE/factory.bin := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi
+  DEVICE_PACKAGES := kmod-mvsdio
+  SUPPORTED_DEVICES += on100
 endef
+TARGET_DEVICES += cisco_on100
 
-define Device/pogo_e02
-$(Device/dockstar)
-  DEVICE_TITLE := Cloud Engines Pogoplug E02
+define Device/cloudengines_pogoe02
+  DEVICE_VENDOR := Cloud Engines
+  DEVICE_MODEL := Pogoplug E02
   DEVICE_DTS := kirkwood-pogo_e02
+  SUPPORTED_DEVICES += pogo_e02
+endef
+TARGET_DEVICES += cloudengines_pogoe02
+
+define Device/cloudengines_pogoplugv4
+  DEVICE_VENDOR := Cloud Engines
+  DEVICE_MODEL := Pogoplug V4
+  DEVICE_DTS := kirkwood-pogoplug-series-4
+  DEVICE_PACKAGES := kmod-ata-marvell-sata kmod-fs-ext4 kmod-mvsdio kmod-usb3 \
+	kmod-gpio-button-hotplug
+endef
+TARGET_DEVICES += cloudengines_pogoplugv4
+
+define Device/iom_iconnect-1.1
+  DEVICE_VENDOR := Iomega
+  DEVICE_MODEL := Iconnect
+  DEVICE_DTS := kirkwood-iconnect
+  SUPPORTED_DEVICES += iconnect
+endef
+TARGET_DEVICES += iom_iconnect-1.1
+
+define Device/iom_ix2-200
+  DEVICE_VENDOR := Iomega
+  DEVICE_MODEL := StorCenter ix2-200
+  DEVICE_DTS := kirkwood-iomega_ix2_200
+  DEVICE_PACKAGES := kmod-ata-marvell-sata kmod-fs-ext4 \
+	kmod-gpio-button-hotplug kmod-hwmon-lm63
+  PAGESIZE := 512
+  SUBPAGESIZE := 256
+  BLOCKSIZE := 16k
+  KERNEL_SIZE := 3072k
+  KERNEL_IN_UBI :=
+  UBINIZE_OPTS := -E 5
+  IMAGE_SIZE := 31744k
+  IMAGE/factory.bin := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi | \
+	check-size
+endef
+TARGET_DEVICES += iom_ix2-200
+
+define Device/linksys
+  DEVICE_VENDOR := Linksys
+  DEVICE_PACKAGES := kmod-mwl8k wpad-basic-wolfssl kmod-gpio-button-hotplug
+  KERNEL_IN_UBI :=
+  UBINIZE_OPTS := -E 5
+  IMAGE/factory.bin := append-kernel | pad-to $$$$(KERNEL_SIZE) | append-ubi
 endef
 
-define Device/ib62x0
-$(Device/dockstar)
-  DEVICE_TITLE := RaidSonic ICY BOX IB-NAS62x0
-  DEVICE_DTS := kirkwood-ib62x0
+define Device/linksys_e4200-v2
+  $(Device/linksys)
+  $(Device/dsa-migration)
+  DEVICE_MODEL := E4200
+  DEVICE_VARIANT := v2
+  KERNEL_SIZE := 2688k
+  SUPPORTED_DEVICES += linksys,viper linksys-viper
 endef
+TARGET_DEVICES += linksys_e4200-v2
+
+define Device/linksys_ea3500
+  $(Device/linksys)
+  $(Device/dsa-migration)
+  DEVICE_MODEL := EA3500
+  PAGESIZE := 512
+  SUBPAGESIZE := 256
+  BLOCKSIZE := 16k
+  KERNEL_SIZE := 2624k
+  SUPPORTED_DEVICES += linksys,audi linksys-audi
+endef
+TARGET_DEVICES += linksys_ea3500
+
+define Device/linksys_ea4500
+  $(Device/linksys)
+  $(Device/dsa-migration)
+  DEVICE_MODEL := EA4500
+  KERNEL_SIZE := 2688k
+  SUPPORTED_DEVICES += linksys,viper linksys-viper
+endef
+TARGET_DEVICES += linksys_ea4500
+
+define Device/raidsonic_ib-nas62x0
+  DEVICE_VENDOR := RaidSonic
+  DEVICE_MODEL := ICY BOX IB-NAS62x0
+  DEVICE_DTS := kirkwood-ib62x0
+  DEVICE_PACKAGES := kmod-ata-marvell-sata kmod-fs-ext4
+  SUPPORTED_DEVICES += ib62x0
+endef
+TARGET_DEVICES += raidsonic_ib-nas62x0
+
+define Device/seagate_dockstar
+  DEVICE_VENDOR := Seagate
+  DEVICE_MODEL := FreeAgent Dockstar
+  SUPPORTED_DEVICES += dockstar
+endef
+TARGET_DEVICES += seagate_dockstar
+
+define Device/seagate_goflexnet
+  DEVICE_VENDOR := Seagate
+  DEVICE_MODEL := GoFlexNet
+  DEVICE_PACKAGES := kmod-ata-marvell-sata kmod-fs-ext4
+  SUPPORTED_DEVICES += goflexnet
+endef
+TARGET_DEVICES += seagate_goflexnet
+
+define Device/seagate_goflexhome
+  DEVICE_VENDOR := Seagate
+  DEVICE_MODEL := GoFlexHome
+  DEVICE_PACKAGES := kmod-ata-marvell-sata kmod-fs-ext4
+  SUPPORTED_DEVICES += goflexhome
+endef
+TARGET_DEVICES += seagate_goflexhome
+
+define Device/zyxel_nsa310b
+  DEVICE_VENDOR := ZyXEL
+  DEVICE_MODEL := NSA310b
+  DEVICE_PACKAGES := kmod-ata-marvell-sata kmod-r8169 kmod-fs-ext4 \
+	kmod-gpio-button-hotplug kmod-hwmon-lm85
+  SUPPORTED_DEVICES += nsa310b
+endef
+TARGET_DEVICES += zyxel_nsa310b
+
+define Device/zyxel_nsa310s
+  DEVICE_VENDOR := ZyXEL
+  DEVICE_MODEL := NSA310S
+  DEVICE_PACKAGES := kmod-ata-marvell-sata kmod-fs-ext4 kmod-gpio-button-hotplug
+endef
+TARGET_DEVICES += zyxel_nsa310s
+
+define Device/zyxel_nsa325
+  DEVICE_VENDOR := ZyXEL
+  DEVICE_MODEL := NSA325
+  DEVICE_VARIANT := v1/v2
+  DEVICE_PACKAGES := kmod-ata-marvell-sata kmod-fs-ext4 \
+	kmod-gpio-button-hotplug kmod-rtc-pcf8563 kmod-usb3
+  SUPPORTED_DEVICES += nsa325
+endef
+TARGET_DEVICES += zyxel_nsa325
 
 $(eval $(call BuildImage))

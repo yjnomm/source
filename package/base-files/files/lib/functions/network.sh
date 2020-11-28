@@ -6,10 +6,16 @@
 __network_ifstatus() {
 	local __tmp
 
-	[ -z "$__NETWORK_CACHE" ] && \
-		export __NETWORK_CACHE="$(ubus call network.interface dump)"
+	[ -z "$__NETWORK_CACHE" ] && {
+		__tmp="$(ubus call network.interface dump 2>&1)"
+		case "$?" in
+			4) : ;;
+			0) export __NETWORK_CACHE="$__tmp" ;;
+			*) echo "$__tmp" >&2 ;;
+		esac
+	}
 
-	__tmp="$(jsonfilter ${4:+-F "$4"} ${5:+-l "$5"} -s "$__NETWORK_CACHE" -e "$1=@.interface${2:+[@.interface='$2']}$3")"
+	__tmp="$(jsonfilter ${4:+-F "$4"} ${5:+-l "$5"} -s "${__NETWORK_CACHE:-{}}" -e "$1=@.interface${2:+[@.interface='$2']}$3")"
 
 	[ -z "$__tmp" ] && \
 		unset "$1" && \
@@ -249,7 +255,7 @@ network_find_wan() { __network_wan "$1" "0.0.0.0" "$2"; }
 
 # find the logical interface which holds the current IPv6 default route
 # 1: destination variable
-# 2: consider inactive dafault routes if "true" (optional)
+# 2: consider inactive default routes if "true" (optional)
 network_find_wan6() { __network_wan "$1" "::" "$2"; }
 
 # test whether the given logical interface is running
@@ -264,6 +270,16 @@ network_is_up()
 # 1: destination variable
 # 2: interface
 network_get_protocol() { __network_ifstatus "$1" "$2" ".proto"; }
+
+# determine the uptime of the given logical interface
+# 1: destination variable
+# 2: interface
+network_get_uptime() { __network_ifstatus "$1" "$2" ".uptime"; }
+
+# determine the metric of the given logical interface
+# 1: destination variable
+# 2: interface
+network_get_metric() { __network_ifstatus "$1" "$2" ".metric"; }
 
 # determine the layer 3 linux network device of the given logical interface
 # 1: destination variable

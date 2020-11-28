@@ -36,7 +36,7 @@ MODULE_LICENSE("GPL");
 
 static int swdev_id;
 static struct list_head swdevs;
-static DEFINE_SPINLOCK(swdevs_lock);
+static DEFINE_MUTEX(swdevs_lock);
 struct swconfig_callback;
 
 struct swconfig_callback {
@@ -269,13 +269,7 @@ static void swconfig_defaults_init(struct switch_dev *dev)
 }
 
 
-static struct genl_family switch_fam = {
-	.id = GENL_ID_GENERATE,
-	.name = "switch",
-	.hdrsize = 0,
-	.version = 1,
-	.maxattr = SWITCH_ATTR_MAX,
-};
+static struct genl_family switch_fam;
 
 static const struct nla_policy switch_policy[SWITCH_ATTR_MAX+1] = {
 	[SWITCH_ATTR_ID] = { .type = NLA_U32 },
@@ -302,13 +296,13 @@ static struct nla_policy link_policy[SWITCH_LINK_ATTR_MAX] = {
 static inline void
 swconfig_lock(void)
 {
-	spin_lock(&swdevs_lock);
+	mutex_lock(&swdevs_lock);
 }
 
 static inline void
 swconfig_unlock(void)
 {
-	spin_unlock(&swdevs_lock);
+	mutex_unlock(&swdevs_lock);
 }
 
 static struct switch_dev *
@@ -597,8 +591,8 @@ swconfig_parse_ports(struct sk_buff *msg, struct nlattr *head,
 
 		port = &val->value.ports[val->len];
 
-		if (nla_parse_nested(tb, SWITCH_PORT_ATTR_MAX, nla,
-				port_policy))
+		if (nla_parse_nested_deprecated(tb, SWITCH_PORT_ATTR_MAX, nla,
+				port_policy, NULL))
 			return -EINVAL;
 
 		if (!tb[SWITCH_PORT_ID])
@@ -619,7 +613,7 @@ swconfig_parse_link(struct sk_buff *msg, struct nlattr *nla,
 {
 	struct nlattr *tb[SWITCH_LINK_ATTR_MAX + 1];
 
-	if (nla_parse_nested(tb, SWITCH_LINK_ATTR_MAX, nla, link_policy))
+	if (nla_parse_nested_deprecated(tb, SWITCH_LINK_ATTR_MAX, nla, link_policy, NULL))
 		return -EINVAL;
 
 	link->duplex = !!tb[SWITCH_LINK_FLAG_DUPLEX];
@@ -997,58 +991,69 @@ swconfig_done(struct netlink_callback *cb)
 static struct genl_ops swconfig_ops[] = {
 	{
 		.cmd = SWITCH_CMD_LIST_GLOBAL,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = swconfig_list_attrs,
-		.policy = switch_policy,
 	},
 	{
 		.cmd = SWITCH_CMD_LIST_VLAN,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = swconfig_list_attrs,
-		.policy = switch_policy,
 	},
 	{
 		.cmd = SWITCH_CMD_LIST_PORT,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = swconfig_list_attrs,
-		.policy = switch_policy,
 	},
 	{
 		.cmd = SWITCH_CMD_GET_GLOBAL,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = swconfig_get_attr,
-		.policy = switch_policy,
 	},
 	{
 		.cmd = SWITCH_CMD_GET_VLAN,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = swconfig_get_attr,
-		.policy = switch_policy,
 	},
 	{
 		.cmd = SWITCH_CMD_GET_PORT,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = swconfig_get_attr,
-		.policy = switch_policy,
 	},
 	{
 		.cmd = SWITCH_CMD_SET_GLOBAL,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags = GENL_ADMIN_PERM,
 		.doit = swconfig_set_attr,
-		.policy = switch_policy,
 	},
 	{
 		.cmd = SWITCH_CMD_SET_VLAN,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags = GENL_ADMIN_PERM,
 		.doit = swconfig_set_attr,
-		.policy = switch_policy,
 	},
 	{
 		.cmd = SWITCH_CMD_SET_PORT,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.flags = GENL_ADMIN_PERM,
 		.doit = swconfig_set_attr,
-		.policy = switch_policy,
 	},
 	{
 		.cmd = SWITCH_CMD_GET_SWITCH,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.dumpit = swconfig_dump_switches,
-		.policy = switch_policy,
 		.done = swconfig_done,
 	}
+};
+
+static struct genl_family switch_fam = {
+	.name = "switch",
+	.hdrsize = 0,
+	.version = 1,
+	.maxattr = SWITCH_ATTR_MAX,
+	.policy = switch_policy,
+	.module = THIS_MODULE,
+	.ops = swconfig_ops,
+	.n_ops = ARRAY_SIZE(swconfig_ops),
 };
 
 #ifdef CONFIG_OF
@@ -1217,13 +1222,14 @@ switch_generic_set_link(struct switch_dev *dev, int port,
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(switch_generic_set_link);
 
 static int __init
 swconfig_init(void)
 {
 	INIT_LIST_HEAD(&swdevs);
-	
-	return genl_register_family_with_ops(&switch_fam, swconfig_ops);
+
+	return genl_register_family(&switch_fam);
 }
 
 static void __exit

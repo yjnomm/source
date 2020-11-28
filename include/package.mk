@@ -11,13 +11,15 @@ all: $(if $(DUMP),dumpinfo,$(if $(CHECK),check,compile))
 
 include $(INCLUDE_DIR)/download.mk
 
-PKG_BUILD_DIR ?= $(BUILD_DIR)/$(PKG_NAME)$(if $(PKG_VERSION),-$(PKG_VERSION))
+PKG_BUILD_DIR ?= $(BUILD_DIR)/$(if $(BUILD_VARIANT),$(PKG_NAME)-$(BUILD_VARIANT)/)$(PKG_NAME)$(if $(PKG_VERSION),-$(PKG_VERSION))
 PKG_INSTALL_DIR ?= $(PKG_BUILD_DIR)/ipkg-install
 PKG_BUILD_PARALLEL ?=
 PKG_USE_MIPS16 ?= 1
 PKG_IREMAP ?= 1
 
 MAKE_J:=$(if $(MAKE_JOBSERVER),$(MAKE_JOBSERVER) $(if $(filter 3.% 4.0 4.1,$(MAKE_VERSION)),-j))
+
+PKG_SOURCE_DATE_EPOCH:=$(if $(DUMP),,$(shell $(TOPDIR)/scripts/get_source_date_epoch.sh $(CURDIR)))
 
 ifeq ($(strip $(PKG_BUILD_PARALLEL)),0)
 PKG_JOBS?=-j1
@@ -40,6 +42,10 @@ include $(INCLUDE_DIR)/prereq.mk
 include $(INCLUDE_DIR)/unpack.mk
 include $(INCLUDE_DIR)/depends.mk
 
+ifneq ($(wildcard $(TOPDIR)/git-src/$(PKG_NAME)/.git),)
+  USE_GIT_SRC_CHECKOUT:=1
+  QUILT:=1
+endif
 ifneq ($(if $(CONFIG_SRC_TREE_OVERRIDE),$(wildcard ./git-src)),)
   USE_GIT_TREE:=1
   QUILT:=1
@@ -53,14 +59,26 @@ endif
 
 include $(INCLUDE_DIR)/quilt.mk
 
-find_library_dependencies = $(wildcard $(patsubst %,$(STAGING_DIR)/pkginfo/%.version, \
-	$(filter-out $(BUILD_PACKAGES),$(foreach dep, \
-		$(filter-out @%, $(patsubst +%,%,$(1))), \
-		$(if $(findstring :,$(dep)), \
-			$(word 2,$(subst :,$(space),$(dep))), \
-			$(dep) \
-		) \
-	))))
+find_library_dependencies = \
+	$(wildcard $(patsubst %,$(STAGING_DIR)/pkginfo/%.version, \
+		$(sort $(foreach dep4, \
+			$(sort $(foreach dep3, \
+				$(sort $(foreach dep2, \
+					$(sort $(foreach dep1, \
+						$(sort $(foreach dep0, \
+							$(Package/$(1)/depends), \
+							$(Package/$(dep0)/depends) $(dep0) \
+						)), \
+						$(Package/$(dep1)/depends) $(dep1) \
+					)), \
+					$(Package/$(dep2)/depends) $(dep2) \
+				)), \
+				$(Package/$(dep3)/depends) $(dep3) \
+			)), \
+			$(Package/$(dep4)/depends) $(dep4) \
+		)), \
+	))
+
 
 PKG_DIR_NAME:=$(lastword $(subst /,$(space),$(CURDIR)))
 STAMP_NO_AUTOREBUILD=$(wildcard $(PKG_BUILD_DIR)/.no_autorebuild)
@@ -69,9 +87,9 @@ ifneq ($(PREV_STAMP_PREPARED),)
   STAMP_PREPARED:=$(PREV_STAMP_PREPARED)
   CONFIG_AUTOREBUILD:=
 else
-  STAMP_PREPARED:=$(PKG_BUILD_DIR)/.prepared$(if $(QUILT)$(DUMP),,_$(shell $(call find_md5,${CURDIR} $(PKG_FILE_DEPENDS),))_$(call confvar,CONFIG_AUTOREMOVE $(PKG_PREPARED_DEPENDS)))
+  STAMP_PREPARED=$(PKG_BUILD_DIR)/.prepared$(if $(QUILT)$(DUMP),,_$(shell $(call find_md5,${CURDIR} $(PKG_FILE_DEPENDS),))_$(call confvar,CONFIG_AUTOREMOVE $(PKG_PREPARED_DEPENDS)))
 endif
-STAMP_CONFIGURED:=$(PKG_BUILD_DIR)/.configured$(if $(DUMP),,_$(call confvar,$(PKG_CONFIG_DEPENDS)))
+STAMP_CONFIGURED=$(PKG_BUILD_DIR)/.configured$(if $(DUMP),,_$(call confvar,$(PKG_CONFIG_DEPENDS)))
 STAMP_CONFIGURED_WILDCARD=$(PKG_BUILD_DIR)/.configured_*
 STAMP_BUILT:=$(PKG_BUILD_DIR)/.built
 STAMP_INSTALLED:=$(STAGING_DIR)/stamp/.$(PKG_DIR_NAME)$(if $(BUILD_VARIANT),.$(BUILD_VARIANT),)_installed
@@ -81,9 +99,10 @@ STAGING_FILES_LIST:=$(PKG_DIR_NAME)$(if $(BUILD_VARIANT),.$(BUILD_VARIANT),).lis
 define CleanStaging
 	rm -f $(STAMP_INSTALLED)
 	@-(\
-		cd "$(STAGING_DIR)"; \
-		if [ -f packages/$(STAGING_FILES_LIST) ]; then \
-			cat packages/$(STAGING_FILES_LIST) | xargs -r rm -f 2>/dev/null; \
+		if [ -f $(STAGING_DIR)/packages/$(STAGING_FILES_LIST) ]; then \
+			$(SCRIPT_DIR)/clean-package.sh \
+				"$(STAGING_DIR)/packages/$(STAGING_FILES_LIST)" \
+				"$(STAGING_DIR)"; \
 		fi; \
 	)
 endef
@@ -116,11 +135,28 @@ ifeq ($(DUMP)$(filter prereq clean refresh update,$(MAKECMDGOALS)),)
   endif
 endif
 
+ifdef USE_GIT_SRC_CHECKOUT
+  define Build/Prepare/Default
+	mkdir -p $(PKG_BUILD_DIR)
+	ln -s $(TOPDIR)/git-src/$(PKG_NAME)/.git $(PKG_BUILD_DIR)/.git
+	( cd $(PKG_BUILD_DIR); \
+		git checkout .; \
+		git submodule update --recursive; \
+		git submodule foreach git config --unset core.worktree; \
+		git submodule foreach git checkout .; \
+	)
+  endef
+endif
 ifdef USE_GIT_TREE
   define Build/Prepare/Default
 	mkdir -p $(PKG_BUILD_DIR)
 	ln -s $(CURDIR)/git-src $(PKG_BUILD_DIR)/.git
-	( cd $(PKG_BUILD_DIR); git checkout .)
+	( cd $(PKG_BUILD_DIR); \
+		git checkout .; \
+		git submodule update --recursive; \
+		git submodule foreach git config --unset core.worktree; \
+		git submodule foreach git checkout .; \
+	)
   endef
 endif
 ifdef USE_SOURCE_DIR
@@ -139,14 +175,21 @@ define Build/Exports/Default
   $(1) : export CONFIG_SITE:=$$(CONFIG_SITE)
   $(1) : export PKG_CONFIG_PATH:=$$(PKG_CONFIG_PATH)
   $(1) : export PKG_CONFIG_LIBDIR:=$$(PKG_CONFIG_PATH)
-  $(1) : export CCACHE_DIR:=$(STAGING_DIR)/ccache
+  $(if $(CONFIG_CCACHE),$(1) : export CCACHE_BASEDIR:=$(TOPDIR))
+  $(if $(CONFIG_CCACHE),$(1) : export CCACHE_DIR:=$(if $(call qstrip,$(CONFIG_CCACHE_DIR)),$(call qstrip,$(CONFIG_CCACHE_DIR)),$(TOPDIR)/.ccache))
+  $(if $(CONFIG_CCACHE),$(1) : export CCACHE_COMPILERCHECK:=%compiler% -dumpmachine; %compiler% -dumpversion)
 endef
 Build/Exports=$(Build/Exports/Default)
 
 define Build/CoreTargets
+  STAMP_PREPARED:=$$(STAMP_PREPARED)
+  STAMP_CONFIGURED:=$$(STAMP_CONFIGURED)
+
   $(if $(QUILT),$(Build/Quilt))
   $(call Build/Autoclean)
   $(call DefaultTargets)
+
+  $(DL_DIR)/$(FILE): FORCE
 
   download:
 	$(foreach hook,$(Hooks/Download),
@@ -165,11 +208,11 @@ define Build/CoreTargets
 
   $(call Build/Exports,$(STAMP_CONFIGURED))
   $(STAMP_CONFIGURED): $(STAMP_PREPARED) $(STAMP_CONFIGURED_DEPENDS)
+	rm -f $(STAMP_CONFIGURED_WILDCARD)
 	$(CleanStaging)
 	$(foreach hook,$(Hooks/Configure/Pre),$(call $(hook))$(sep))
 	$(Build/Configure)
 	$(foreach hook,$(Hooks/Configure/Post),$(call $(hook))$(sep))
-	rm -f $(STAMP_CONFIGURED_WILDCARD)
 	touch $$@
 
   $(call Build/Exports,$(STAMP_BUILT))
@@ -186,7 +229,7 @@ define Build/CoreTargets
   $(STAMP_INSTALLED) : export PATH=$$(TARGET_PATH_PKG)
   $(STAMP_INSTALLED): $(STAMP_BUILT)
 	rm -rf $(TMP_DIR)/stage-$(PKG_DIR_NAME)
-	mkdir -p $(TMP_DIR)/stage-$(PKG_DIR_NAME)/host $(STAGING_DIR)/packages $(STAGING_DIR_HOST)/packages
+	mkdir -p $(TMP_DIR)/stage-$(PKG_DIR_NAME)/host $(STAGING_DIR)/packages
 	$(foreach hook,$(Hooks/InstallDev/Pre),\
 		$(call $(hook),$(TMP_DIR)/stage-$(PKG_DIR_NAME),$(TMP_DIR)/stage-$(PKG_DIR_NAME)/host)$(sep)\
 	)
@@ -220,14 +263,14 @@ define Build/CoreTargets
 
   ifneq ($(CONFIG_AUTOREMOVE),)
     compile:
-		-touch $(PKG_BUILD_DIR)/.autoremove 2>/dev/null >/dev/null
+		-touch -r $(PKG_BUILD_DIR)/.built $(PKG_BUILD_DIR)/.autoremove 2>/dev/null >/dev/null
 		$(FIND) $(PKG_BUILD_DIR) -mindepth 1 -maxdepth 1 -not '(' -type f -and -name '.*' -and -size 0 ')' -and -not -name '.pkgdir' | \
 			$(XARGS) rm -rf
   endif
 endef
 
 define Build/DefaultTargets
-  $(if $(USE_SOURCE_DIR)$(USE_GIT_TREE),,$(if $(strip $(PKG_SOURCE_URL)),$(call Download,default)))
+  $(if $(USE_SOURCE_DIR)$(USE_GIT_TREE)$(USE_GIT_SRC_CHECKOUT),,$(if $(strip $(PKG_SOURCE_URL)),$(call Download,default)))
   $(if $(DUMP),,$(Build/CoreTargets))
 
   define Build/DefaultTargets
@@ -249,7 +292,7 @@ endef
 endif
 
   BUILD_PACKAGES += $(1)
-  $(STAMP_PREPARED): $$(if $(QUILT)$(DUMP),,$(call find_library_dependencies,$(DEPENDS)))
+  $(STAMP_PREPARED): $$(if $(QUILT)$(DUMP),,$(call find_library_dependencies,$(1)))
 
   $(foreach FIELD, TITLE CATEGORY SECTION VERSION,
     ifeq ($($(FIELD)),)
@@ -305,9 +348,9 @@ clean-build: $(if $(wildcard $(PKG_BUILD_DIR)/.autoremove),force-clean-build)
 
 clean: force-clean-build
 	$(CleanStaging)
-	$(call Build/UninstallDev,$(STAGING_DIR),$(STAGING_DIR_HOST))
+	$(call Build/UninstallDev,$(STAGING_DIR),$(STAGING_DIR)/host)
 	$(Build/Clean)
-	rm -f $(STAGING_DIR)/packages/$(STAGING_FILES_LIST) $(STAGING_DIR_HOST)/packages/$(STAGING_FILES_LIST)
+	rm -f $(STAGING_DIR)/packages/$(STAGING_FILES_LIST)
 
 dist:
 	$(Build/Dist)

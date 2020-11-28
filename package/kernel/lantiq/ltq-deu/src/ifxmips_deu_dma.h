@@ -39,6 +39,7 @@
 #include <asm/byteorder.h>
 #include <linux/skbuff.h>
 #include <linux/netdevice.h>
+#include <linux/version.h>
 
 // must match the size of memory block allocated for g_dma_block and g_dma_block2
 #define DEU_MAX_PACKET_SIZE    (PAGE_SIZE >> 1)
@@ -53,7 +54,7 @@ typedef struct ifx_deu_device {
 	int recv_count;
 	int packet_size;
 	int packet_num;
-	wait_queue_t wait;
+	wait_queue_entry_t wait;
 } _ifx_deu_device;
 
 extern _ifx_deu_device ifx_deu[1];

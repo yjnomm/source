@@ -24,10 +24,6 @@ I2C_CORE_MODULES:= \
   CONFIG_I2C:drivers/i2c/i2c-core \
   CONFIG_I2C_CHARDEV:drivers/i2c/i2c-dev
 
-ifeq ($(CONFIG_OF),y)
-  I2C_CORE_MODULES+=CONFIG_OF_I2C:drivers/of/of_i2c@lt3.12
-endif
-
 define KernelPackage/i2c-core
   $(call i2c_defaults,$(I2C_CORE_MODULES),51)
   TITLE:=I2C support
@@ -46,7 +42,7 @@ I2C_ALGOBIT_MODULES:= \
 define KernelPackage/i2c-algo-bit
   $(call i2c_defaults,$(I2C_ALGOBIT_MODULES),55)
   TITLE:=I2C bit-banging interfaces
-  DEPENDS:=kmod-i2c-core
+  DEPENDS:=+kmod-i2c-core
 endef
 
 define KernelPackage/i2c-algo-bit/description
@@ -62,7 +58,7 @@ I2C_ALGOPCA_MODULES:= \
 define KernelPackage/i2c-algo-pca
   $(call i2c_defaults,$(I2C_ALGOPCA_MODULES),55)
   TITLE:=I2C PCA 9564 interfaces
-  DEPENDS:=kmod-i2c-core
+  DEPENDS:=+kmod-i2c-core
 endef
 
 define KernelPackage/i2c-algo-pca/description
@@ -78,7 +74,7 @@ I2C_ALGOPCF_MODULES:= \
 define KernelPackage/i2c-algo-pcf
   $(call i2c_defaults,$(I2C_ALGOPCF_MODULES),55)
   TITLE:=I2C PCF 8584 interfaces
-  DEPENDS:=kmod-i2c-core
+  DEPENDS:=+kmod-i2c-core
 endef
 
 define KernelPackage/i2c-algo-pcf/description
@@ -104,52 +100,14 @@ endef
 
 $(eval $(call KernelPackage,i2c-gpio))
 
-I2C_TINY_USB_MODULES:= \
-  CONFIG_I2C_TINY_USB:drivers/i2c/busses/i2c-tiny-usb
-
-define KernelPackage/i2c-tiny-usb
-  $(call i2c_defaults,$(I2C_TINY_USB_MODULES),59)
-  TITLE:=I2C Tiny USB adaptor
-  DEPENDS:=@USB_SUPPORT kmod-i2c-core +kmod-usb-core
-endef
-
-define KernelPackage/i2c-tiny-usb/description
- Kernel module for the I2C Tiny USB adaptor developed
- by Till Harbaum (http://www.harbaum.org/till/i2c_tiny_usb)
-endef
-
-$(eval $(call KernelPackage,i2c-tiny-usb))
-
-
-I2C_PIIX4_MODULES:= \
-  CONFIG_I2C_PIIX4:drivers/i2c/busses/i2c-piix4
-
-define KernelPackage/i2c-piix4
-  $(call i2c_defaults,$(I2C_PIIX4_MODULES),59)
-  TITLE:=Intel PIIX4 and compatible I2C interfaces
-  DEPENDS:=@PCI_SUPPORT @TARGET_x86 kmod-i2c-core
-endef
-
-define KernelPackage/i2c-piix4/description
- Support for the Intel PIIX4 family of mainboard I2C interfaces,
- specifically Intel PIIX4, Intel 440MX, ATI IXP200, ATI IXP300,
- ATI IXP400, ATI SB600, ATI SB700/SP5100, ATI SB800, AMD Hudson-2,
- AMD ML, AMD CZ, Serverworks OSB4, Serverworks CSB5,
- Serverworks CSB6, Serverworks HT-1000, Serverworks HT-1100 and
- SMSC Victory66.
-endef
-
-$(eval $(call KernelPackage,i2c-piix4))
-
 
 I2C_I801_MODULES:= \
-  CONFIG_I2C_I801:drivers/i2c/busses/i2c-i801 \
-  CONFIG_I2C_SMBUS:drivers/i2c/i2c-smbus
+  CONFIG_I2C_I801:drivers/i2c/busses/i2c-i801
 
 define KernelPackage/i2c-i801
   $(call i2c_defaults,$(I2C_I801_MODULES),59)
   TITLE:=Intel I801 and compatible I2C interfaces
-  DEPENDS:=@PCI_SUPPORT @TARGET_x86 kmod-i2c-core
+  DEPENDS:=@PCI_SUPPORT @TARGET_x86 +kmod-i2c-core +kmod-i2c-smbus
 endef
 
 define KernelPackage/i2c-i801/description
@@ -174,7 +132,7 @@ I2C_MUX_MODULES:= \
 define KernelPackage/i2c-mux
   $(call i2c_defaults,$(I2C_MUX_MODULES),51)
   TITLE:=I2C bus multiplexing support
-  DEPENDS:=kmod-i2c-core
+  DEPENDS:=+kmod-i2c-core
 endef
 
 define KernelPackage/i2c-mux/description
@@ -189,7 +147,7 @@ I2C_MUX_GPIO_MODULES:= \
 define KernelPackage/i2c-mux-gpio
   $(call i2c_defaults,$(I2C_MUX_GPIO_MODULES),51)
   TITLE:=GPIO-based I2C mux/switches
-  DEPENDS:=kmod-i2c-mux
+  DEPENDS:=+kmod-i2c-mux
 endef
 
 define KernelPackage/i2c-mux-gpio/description
@@ -198,13 +156,29 @@ endef
 
 $(eval $(call KernelPackage,i2c-mux-gpio))
 
+
+I2C_MUX_PCA9541_MODULES:= \
+  CONFIG_I2C_MUX_PCA9541:drivers/i2c/muxes/i2c-mux-pca9541
+
+define KernelPackage/i2c-mux-pca9541
+  $(call i2c_defaults,$(I2C_MUX_PCA9541_MODULES),51)
+  TITLE:=Philips PCA9541 I2C mux/switches
+  DEPENDS:=+kmod-i2c-mux
+endef
+
+define KernelPackage/i2c-mux-pca9541/description
+ Kernel modules for PCA9541 I2C bus mux/switching devices
+endef
+
+$(eval $(call KernelPackage,i2c-mux-pca9541))
+
 I2C_MUX_PCA954x_MODULES:= \
   CONFIG_I2C_MUX_PCA954x:drivers/i2c/muxes/i2c-mux-pca954x
 
 define KernelPackage/i2c-mux-pca954x
   $(call i2c_defaults,$(I2C_MUX_PCA954x_MODULES),51)
   TITLE:=Philips PCA954x I2C mux/switches
-  DEPENDS:=kmod-i2c-mux
+  DEPENDS:=+kmod-i2c-mux
 endef
 
 define KernelPackage/i2c-mux-pca954x/description
@@ -214,17 +188,74 @@ endef
 $(eval $(call KernelPackage,i2c-mux-pca954x))
 
 
-I2C_MUX_PCA9541_MODULES:= \
-  CONFIG_I2C_MUX_PCA9541:drivers/i2c/muxes/i2c-mux-pca9541
+I2C_PIIX4_MODULES:= \
+  CONFIG_I2C_PIIX4:drivers/i2c/busses/i2c-piix4
 
-define KernelPackage/i2c-mux-pca9541
-  $(call i2c_defaults,$(I2C_MUX_PCA9541_MODULES),51)
-  TITLE:=Philips PCA9541 I2C mux/switches
-  DEPENDS:=kmod-i2c-mux
+define KernelPackage/i2c-piix4
+  $(call i2c_defaults,$(I2C_PIIX4_MODULES),59)
+  TITLE:=Intel PIIX4 and compatible I2C interfaces
+  DEPENDS:=@PCI_SUPPORT @TARGET_x86 +kmod-i2c-core
 endef
 
-define KernelPackage/i2c-mux-pca9541/description
- Kernel modules for PCA9541 I2C bus mux/switching devices
+define KernelPackage/i2c-piix4/description
+ Support for the Intel PIIX4 family of mainboard I2C interfaces,
+ specifically Intel PIIX4, Intel 440MX, ATI IXP200, ATI IXP300,
+ ATI IXP400, ATI SB600, ATI SB700/SP5100, ATI SB800, AMD Hudson-2,
+ AMD ML, AMD CZ, Serverworks OSB4, Serverworks CSB5,
+ Serverworks CSB6, Serverworks HT-1000, Serverworks HT-1100 and
+ SMSC Victory66.
 endef
 
-$(eval $(call KernelPackage,i2c-mux-pca9541))
+$(eval $(call KernelPackage,i2c-piix4))
+
+
+I2C_PXA_MODULES:= \
+  CONFIG_I2C_PXA:drivers/i2c/busses/i2c-pxa
+
+define KernelPackage/i2c-pxa
+  $(call i2c_defaults,$(I2C_PXA_MODULES),50)
+  TITLE:=Intel PXA I2C bus driver
+  DEPENDS:=+kmod-i2c-core
+endef
+
+define KernelPackage/i2c-pxa/description
+  Kernel module for Intel PXA2XX I2C adapter
+endef
+
+$(eval $(call KernelPackage,i2c-pxa))
+
+
+I2C_SMBUS_MODULES:= \
+  CONFIG_I2C_SMBUS:drivers/i2c/i2c-smbus
+
+define KernelPackage/i2c-smbus
+  $(call i2c_defaults,$(I2C_SMBUS_MODULES),58)
+  TITLE:=SMBus-specific protocols helper
+  DEPENDS:=+kmod-i2c-core
+endef
+
+define KernelPackage/i2c-smbus/description
+ Support for the SMBus extensions to the I2C specification.
+endef
+
+$(eval $(call KernelPackage,i2c-smbus))
+
+
+
+I2C_TINY_USB_MODULES:= \
+  CONFIG_I2C_TINY_USB:drivers/i2c/busses/i2c-tiny-usb
+
+define KernelPackage/i2c-tiny-usb
+  $(call i2c_defaults,$(I2C_TINY_USB_MODULES),59)
+  TITLE:=I2C Tiny USB adaptor
+  DEPENDS:=@USB_SUPPORT +kmod-i2c-core +kmod-usb-core
+endef
+
+define KernelPackage/i2c-tiny-usb/description
+ Kernel module for the I2C Tiny USB adaptor developed
+ by Till Harbaum (http://www.harbaum.org/till/i2c_tiny_usb)
+endef
+
+$(eval $(call KernelPackage,i2c-tiny-usb))
+
+

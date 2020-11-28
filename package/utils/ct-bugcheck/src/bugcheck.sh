@@ -11,7 +11,7 @@ FOUND_BUG=0
 
 bugcheck_generic()
 {
-    echo "LEDE crashlog report" > $CRASHDIR/info.txt
+    echo "OpenWrt crashlog report" > $CRASHDIR/info.txt
     date >> $CRASHDIR/info.txt
     echo >> $CRASHDIR/info.txt
     echo "uname" >> $CRASHDIR/info.txt
@@ -89,7 +89,7 @@ do
 	  echo "https://github.com/greearb/ath10k-ct/issues" >> $CRASHDIR/report_to.txt
       else
 	  # Not sure who would want these bug reports for upstream...
-	  echo "https://www.lede-project.org/" >> $CRASHDIR/report_to.txt
+	  echo "https://openwrt.org/" >> $CRASHDIR/report_to.txt
       fi
       echo >> $CRASHDIR/report_to.txt
       echo "Please attach all files in this directory to bug reports." >> $CRASHDIR/report_to.txt

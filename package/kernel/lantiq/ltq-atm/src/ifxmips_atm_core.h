@@ -34,7 +34,7 @@
 #define SET_BITS(x, msb, lsb, value)    (((x) & ~(((1 << ((msb) + 1)) - 1) ^ ((1 << (lsb)) - 1))) | (((value) & ((1 << (1 + (msb) - (lsb))) - 1)) << (lsb)))
 
 struct ltq_atm_ops {
-	void (*init)(void);
+	void (*init)(struct platform_device *pdev);
 	void (*shutdown)(void);
 
 	int (*start)(int pp32);
@@ -43,6 +43,7 @@ struct ltq_atm_ops {
 	void (*fw_ver)(unsigned int *major, unsigned int *minor);
 };
 
+#include <linux/atomic.h>
 #include <lantiq_atm.h>
 
 /*
@@ -195,6 +196,7 @@ struct connection {
 	volatile struct tx_descriptor *tx_desc;
 	unsigned int tx_desc_pos;
 	struct sk_buff **tx_skb;
+	spinlock_t lock;
 
 	unsigned int aal5_vcc_crc_err; /* number of packets with CRC error */
 	unsigned int aal5_vcc_oversize_sdu; /* number of packets with oversize error */

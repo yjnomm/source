@@ -11,7 +11,7 @@ ifneq ($(DUMP),1)
   all: compile
 endif
 
-KERNEL_FILE_DEPENDS=$(BACKPORT_PATCH_DIR) $(GENERIC_PATCH_DIR) $(GENERIC_HACK_DIR) $(PATCH_DIR) $(GENERIC_FILES_DIR) $(FILES_DIR)
+KERNEL_FILE_DEPENDS=$(GENERIC_BACKPORT_DIR) $(GENERIC_PATCH_DIR) $(GENERIC_HACK_DIR) $(PATCH_DIR) $(GENERIC_FILES_DIR) $(FILES_DIR)
 STAMP_PREPARED=$(LINUX_DIR)/.prepared$(if $(QUILT)$(DUMP),,_$(shell $(call find_md5,$(KERNEL_FILE_DEPENDS),)))
 STAMP_CONFIGURED:=$(LINUX_DIR)/.configured
 include $(INCLUDE_DIR)/download.mk
@@ -50,14 +50,10 @@ ifneq ($(strip $(CONFIG_KERNEL_GIT_LOCAL_REPOSITORY)),"")
   KERNEL_GIT_OPTS+=--reference $(CONFIG_KERNEL_GIT_LOCAL_REPOSITORY)
 endif
 
-ifneq ($(strip $(CONFIG_KERNEL_GIT_BRANCH)),"")
-  KERNEL_GIT_OPTS+=--branch $(CONFIG_KERNEL_GIT_BRANCH)
-endif
-
 define Download/git-kernel
   URL:=$(call qstrip,$(CONFIG_KERNEL_GIT_CLONE_URI))
   PROTO:=git
-  VERSION:=$(CONFIG_KERNEL_GIT_BRANCH)
+  VERSION:=$(CONFIG_KERNEL_GIT_REF)
   FILE:=$(LINUX_SOURCE)
   SUBDIR:=linux-$(LINUX_VERSION)
   OPTS:=$(KERNEL_GIT_OPTS)
@@ -74,7 +70,7 @@ ifdef CONFIG_COLLECT_KERNEL_DEBUG
 	$(FIND) $(KERNEL_BUILD_DIR)/debug -type f | $(XARGS) $(KERNEL_CROSS)strip --only-keep-debug
 	$(TAR) c -C $(KERNEL_BUILD_DIR) debug \
 		$(if $(SOURCE_DATE_EPOCH),--mtime="@$(SOURCE_DATE_EPOCH)") \
-		| bzip2 -c -9 > $(BIN_DIR)/kernel-debug.tar.bz2
+		| zstd -T0 -f -o $(BIN_DIR)/kernel-debug.tar.zst
   endef
 endif
 
@@ -135,10 +131,16 @@ define BuildKernel
 	$(Kernel/Configure)
 	touch $$@
 
+  $(LINUX_DIR)/.modules: export STAGING_PREFIX=$$(STAGING_DIR_HOST)
+  $(LINUX_DIR)/.modules: export PKG_CONFIG_PATH=$$(STAGING_DIR_HOST)/lib/pkgconfig
+  $(LINUX_DIR)/.modules: export PKG_CONFIG_LIBDIR=$$(STAGING_DIR_HOST)/lib/pkgconfig
   $(LINUX_DIR)/.modules: $(STAMP_CONFIGURED) $(LINUX_DIR)/.config FORCE
 	$(Kernel/CompileModules)
 	touch $$@
 
+  $(LINUX_DIR)/.image: export STAGING_PREFIX=$$(STAGING_DIR_HOST)
+  $(LINUX_DIR)/.image: export PKG_CONFIG_PATH=$$(STAGING_DIR_HOST)/lib/pkgconfig
+  $(LINUX_DIR)/.image: export PKG_CONFIG_LIBDIR=$$(STAGING_DIR_HOST)/lib/pkgconfig
   $(LINUX_DIR)/.image: $(STAMP_CONFIGURED) $(if $(CONFIG_STRIP_KERNEL_EXPORTS),$(KERNEL_BUILD_DIR)/symtab.h) FORCE
 	$(Kernel/CompileImage)
 	$(Kernel/CollectDebug)
@@ -155,14 +157,19 @@ define BuildKernel
   compile: $(LINUX_DIR)/.modules
 	$(MAKE) -C image compile TARGET_BUILD=
 
-  oldconfig menuconfig nconfig: $(STAMP_PREPARED) $(STAMP_CHECKED) FORCE
+  oldconfig menuconfig nconfig xconfig: $(STAMP_PREPARED) $(STAMP_CHECKED) FORCE
 	rm -f $(LINUX_DIR)/.config.prev
 	rm -f $(STAMP_CONFIGURED)
 	$(LINUX_RECONF_CMD) > $(LINUX_DIR)/.config
 	$(_SINGLE)$(KERNEL_MAKE) \
-		$(if $(findstring Darwin,$(HOST_OS)),HOST_LOADLIBES="-L$(STAGING_DIR_HOST)/lib -lncurses") \
+		$(if $(findstring Darwin,$(HOST_OS)), \
+			HOST_LOADLIBES="-L$(STAGING_DIR_HOST)/lib -lncurses" \
+			HOSTLDLIBS_mconf="-L$(STAGING_DIR_HOST)/lib -lncurses" \
+			filechk_conf_cfg="	:" \
+		) \
+		YACC=$(STAGING_DIR_HOST)/bin/bison \
 		$$@
-	$(LINUX_RECONF_DIFF) $(LINUX_DIR)/.config > $(LINUX_RECONFIG_TARGET)
+	$(call LINUX_RECONF_DIFF,$(LINUX_DIR)/.config) > $(LINUX_RECONFIG_TARGET)
 
   install: $(LINUX_DIR)/.image
 	+$(MAKE) -C image compile install TARGET_BUILD=

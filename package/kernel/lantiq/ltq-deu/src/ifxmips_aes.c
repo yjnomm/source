@@ -885,27 +885,15 @@ struct crypto_alg ifxdeu_ctr_rfc3686_aes_alg = {
 };
 
 
-/*! \fn int __init ifxdeu_init_aes (void)
+/*! \fn int ifxdeu_init_aes (void)
  *  \ingroup IFX_AES_FUNCTIONS
  *  \brief function to initialize AES driver   
  *  \return ret 
 */                                 
-int __init ifxdeu_init_aes (void)
+int ifxdeu_init_aes (void)
 {
     int ret = -ENOSYS;
 
-
- 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20))
-    if (!disable_multiblock) {
-        ifxdeu_aes_alg.cra_u.cipher.cia_max_nbytes = AES_BLOCK_SIZE;    //(size_t)-1;
-        ifxdeu_aes_alg.cra_u.cipher.cia_req_align = 16;
-        ifxdeu_aes_alg.cra_u.cipher.cia_ecb = ifx_deu_aes_ecb;
-        ifxdeu_aes_alg.cra_u.cipher.cia_cbc = ifx_deu_aes_cbc;
-        ifxdeu_aes_alg.cra_u.cipher.cia_cfb = ifx_deu_aes_cfb;
-        ifxdeu_aes_alg.cra_u.cipher.cia_ofb = ifx_deu_aes_ofb;
-    }
-#endif
 
     if ((ret = crypto_register_alg(&ifxdeu_aes_alg)))
         goto aes_err;
@@ -952,11 +940,11 @@ aes_err:
     return ret;
 }
 
-/*! \fn void __exit ifxdeu_fini_aes (void)
+/*! \fn void ifxdeu_fini_aes (void)
  *  \ingroup IFX_AES_FUNCTIONS
  *  \brief unregister aes driver   
 */                                 
-void __exit ifxdeu_fini_aes (void)
+void ifxdeu_fini_aes (void)
 {
     crypto_unregister_alg (&ifxdeu_aes_alg);
     crypto_unregister_alg (&ifxdeu_ecb_aes_alg);
